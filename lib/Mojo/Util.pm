@@ -8,6 +8,10 @@ use Encode 'find_encoding';
 use File::Basename 'dirname';
 use File::Spec::Functions 'catfile';
 use MIME::Base64 qw(decode_base64 encode_base64);
+# To update HTML5 entities run this command
+# perl examples/entities.pl > lib/Mojo/Util/Entities.pm
+# win: perl examples\entities.pl > Entities.new; move Entities.new lib\Mojo\Util\Entities.pm
+use Mojo::Util::Entities;
 
 # Punycode bootstring parameters
 use constant {
@@ -20,22 +24,7 @@ use constant {
   PC_INITIAL_N    => 128
 };
 
-# To update HTML5 entities run this command
-# perl examples/entities.pl > lib/Mojo/entities.txt
-my %ENTITIES;
-{
-  open my $entities, '<', catfile(dirname(__FILE__), 'entities.txt');
-  for my $entity (<$entities>) {
-    next unless $entity =~ /^(\S+)\s+U\+(\S+)(?:\s+U\+(\S+))?/;
-    $ENTITIES{$1} = defined $3 ? (chr(hex $2) . chr(hex $3)) : chr(hex $2);
-  }
-}
-
-# DEPRECATED in Rainbow!
-my %REVERSE = ("\x{0027}" => '#39;');
-$REVERSE{$ENTITIES{$_}} //= $_
-  for sort  { @{[$a =~ /[A-Z]/g]} <=> @{[$b =~ /[A-Z]/g]} }
-  sort grep {/;/} keys %ENTITIES;
+my $entities = Mojo::Util::Entities->new();
 
 # Encoding cache
 my %CACHE;
@@ -365,7 +354,7 @@ sub _decode {
   my $rest   = '';
   my $entity = $_[1];
   while (length $entity) {
-    return "$ENTITIES{$entity}$rest" if exists $ENTITIES{$entity};
+    return $entities->{Forward}->{$entity}.$rest if exists $entities->{Forward}->{$entity};
     $rest = chop($entity) . $rest;
   }
   return "&$_[1]";
@@ -373,7 +362,7 @@ sub _decode {
 
 # DEPRECATED in Rainbow!
 sub _encode {
-  return exists $REVERSE{$_[0]} ? "&$REVERSE{$_[0]}" : "&#@{[ord($_[0])]};";
+  return exists $entities->{Reverse}->{$_[0]} ? '&'.$entities->{Reverse}->{$_[0]} : "&#@{[ord($_[0])]};";
 }
 
 sub _encoding {
